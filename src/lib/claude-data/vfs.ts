@@ -1,0 +1,111 @@
+// In-memory stand-ins for the few fs/path/os/readline calls the reader makes.
+// Everything lives in this browser tab: nothing is uploaded or persisted.
+
+export const CLAUDE_ROOT = '/claude';
+
+interface VFile {
+  text: string;
+  mtimeMs: number;
+}
+
+const files = new Map<string, VFile>();
+const dirs = new Set<string>([CLAUDE_ROOT]);
+let version = 0;
+const listeners = new Set<() => void>();
+
+// Only what the dashboard reads; credentials and settings are never touched.
+const KEEP = /(?:^|\/)((?:projects|plans|todos)\/.+|stats-cache\.json|history\.jsonl)$/;
+
+/** Maps an arbitrary picked/zipped path to its path inside .claude, or null to skip it. */
+export function toClaudePath(rawPath: string): string | null {
+  const m = rawPath.replace(/\\/g, '/').match(KEEP);
+  return m ? m[1] : null;
+}
+
+export interface LoadInput {
+  path: string; // relative to .claude, e.g. "projects/foo/123.jsonl"
+  size: number;
+  mtimeMs: number;
+  read: () => Promise<string>;
+}
+
+export async function loadFiles(inputs: LoadInput[], onProgress: (done: number, total: number) => void) {
+  files.clear();
+  dirs.clear();
+  dirs.add(CLAUDE_ROOT);
+  const total = inputs.reduce((s, f) => s + f.size, 0) || 1;
+  let done = 0;
+  for (const input of inputs) {
+    const full = `${CLAUDE_ROOT}/${input.path}`;
+    files.set(full, { text: await input.read(), mtimeMs: input.mtimeMs });
+    for (let d = path.dirname(full); d.length > CLAUDE_ROOT.length; d = path.dirname(d)) dirs.add(d);
+    done += input.size;
+    onProgress(done, total);
+  }
+  version++;
+  listeners.forEach(l => l());
+}
+
+export function clearFiles() {
+  files.clear();
+  dirs.clear();
+  dirs.add(CLAUDE_ROOT);
+  version = 0;
+  listeners.forEach(l => l());
+}
+
+export function getVersion() {
+  return version;
+}
+
+export function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
+
+export const path = {
+  join: (...parts: string[]) => parts.join('/').replace(/\/+/g, '/'),
+  dirname: (p: string) => p.slice(0, p.lastIndexOf('/')) || '/',
+  basename: (p: string, ext?: string) => {
+    const base = p.slice(p.lastIndexOf('/') + 1);
+    return ext && base.endsWith(ext) ? base.slice(0, -ext.length) : base;
+  },
+};
+
+export const os = {
+  homedir: () => '/',
+};
+
+function stat(p: string) {
+  const f = files.get(p);
+  if (!f && !dirs.has(p)) throw new Error(`ENOENT: ${p}`);
+  const mtimeMs = f?.mtimeMs ?? 0;
+  return { isDirectory: () => !f, mtimeMs, mtime: new Date(mtimeMs), size: f?.text.length ?? 0 };
+}
+
+export const fs = {
+  existsSync: (p: string) => files.has(p) || dirs.has(p),
+  statSync: stat,
+  readFileSync: (p: string, _enc?: string) => {
+    const f = files.get(p);
+    if (!f) throw new Error(`ENOENT: ${p}`);
+    return f.text;
+  },
+  readdirSync: (p: string) => {
+    const prefix = p + '/';
+    const names = new Set<string>();
+    for (const key of [...files.keys(), ...dirs]) {
+      if (key.startsWith(prefix)) names.add(key.slice(prefix.length).split('/')[0]);
+    }
+    return [...names];
+  },
+  createReadStream: (p: string) => fs.readFileSync(p),
+};
+
+export const readline = {
+  createInterface: ({ input }: { input: string; crlfDelay?: number }) => ({
+    async *[Symbol.asyncIterator]() {
+      for (const line of input.split(/\r?\n/)) yield line;
+    },
+  }),
+};

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "@/components/providers";
-import { Sidebar } from "@/components/layout/sidebar";
+import { AppShell } from "@/components/app-shell";
+import { themeInitScript } from "@/components/theme-toggle";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Claude Code Dashboard",
-  description: "Analytics dashboard for Claude Code usage",
+  title: "Claud'Ometer",
+  description: "Analysez votre usage de Claude Code, directement dans votre navigateur",
 };
 
 export default function RootLayout({
@@ -25,17 +26,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="fr" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Providers>
-          <Sidebar />
-          <main className="ml-60 min-h-screen">
-            <div className="mx-auto max-w-7xl px-6 py-6">
-              {children}
-            </div>
-          </main>
+          <AppShell>{children}</AppShell>
         </Providers>
       </body>
     </html>

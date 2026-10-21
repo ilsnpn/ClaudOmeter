@@ -1,148 +1,104 @@
 'use client';
 
-import { useStats } from '@/lib/hooks';
-import { useCostMode } from '@/lib/cost-mode-context';
-import { CostModeSelector } from '@/components/cost-mode-selector';
-import { StatCard } from '@/components/cards/stat-card';
-import { UsageOverTime } from '@/components/charts/usage-over-time';
-import { ModelBreakdown } from '@/components/charts/model-breakdown';
-import { ActivityHeatmap } from '@/components/charts/activity-heatmap';
-import { PeakHours } from '@/components/charts/peak-hours';
-import { formatTokens, formatCost, formatDuration, timeAgo } from '@/lib/format';
-import {
-  MessageSquare,
-  Layers,
-  Coins,
-  Activity,
-  Clock,
-  GitBranch,
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
+import { useEffect } from 'react';
+import OverviewPage from './overview/page';
+import CostsPage from './costs/page';
+import ValuePage from './value/page';
+import ProjectsPage from './projects/page';
+import SessionsPage from './sessions/page';
 
-export default function DashboardPage() {
-  const { data: stats, isLoading } = useStats();
-  const { pickCost, label: modeLabel } = useCostMode();
+// One-page home: the main views stacked; each `.slide` inside them is one screen.
+// Scrolling and arrow keys move exactly one slide.
+const SECTIONS = [
+  { id: 'overview', Component: OverviewPage },
+  { id: 'costs', Component: CostsPage },
+  { id: 'value', Component: ValuePage },
+  { id: 'projects', Component: ProjectsPage },
+  { id: 'sessions', Component: SessionsPage },
+] as const;
 
-  if (isLoading || !stats) {
-    return (
-      <div className="flex h-[80vh] items-center justify-center">
-        <div className="space-y-3 text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Loading analytics...</p>
-        </div>
-      </div>
-    );
+const slides = () => Array.from(document.querySelectorAll<HTMLElement>('#onepage .slide'));
+
+function currentIndex(list: HTMLElement[]) {
+  const mid = window.innerHeight / 2;
+  const i = list.findIndex(el => {
+    const r = el.getBoundingClientRect();
+    return r.top <= mid && r.bottom > mid;
+  });
+  return Math.max(i, 0);
+}
+
+/** Shrinks a slide's content (CSS zoom) when it is taller than the screen. */
+function fit(slide: HTMLElement) {
+  const kids = Array.from(slide.children) as HTMLElement[];
+  kids.forEach(k => { k.style.zoom = ''; });
+  const style = getComputedStyle(slide);
+  const available = slide.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+  if (!kids.length) return;
+  const needed = kids[kids.length - 1].getBoundingClientRect().bottom - kids[0].getBoundingClientRect().top;
+  if (needed > available) {
+    const z = String(Math.max(available / needed, 0.5));
+    kids.forEach(k => { k.style.zoom = z; });
   }
+}
+
+export default function HomePage() {
+  useEffect(() => {
+    // Always open on the first slide, not wherever the browser restores the scroll.
+    history.scrollRestoration = 'manual';
+    if (!location.hash) window.scrollTo({ top: 0, behavior: 'instant' });
+
+    let locked = false;
+    let touched = false; // until the user moves, stay pinned on the first slide while content loads
+    const go = (dir: 1 | -1) => {
+      const list = slides();
+      const next = list[Math.min(Math.max(currentIndex(list) + dir, 0), list.length - 1)];
+      if (!next || locked) return;
+      touched = true;
+      locked = true;
+      next.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTimeout(() => { locked = false; }, 700);
+    };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (Math.abs(e.deltaY) > 4) go(e.deltaY > 0 ? 1 : -1);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).closest('input, textarea, select')) return;
+      if (['ArrowDown', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); go(1); }
+      if (['ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); go(-1); }
+    };
+
+    // Refit whenever a slide's content changes size (data arriving, charts drawing, resize).
+    const refitAll = () => {
+      slides().forEach(fit);
+      if (!touched && !location.hash) window.scrollTo({ top: 0, behavior: 'instant' });
+    };
+    const ro = new ResizeObserver(() => requestAnimationFrame(refitAll));
+    const observe = () => slides().forEach(s => ro.observe(s));
+    const mo = new MutationObserver(() => { observe(); requestAnimationFrame(refitAll); });
+    const root = document.getElementById('onepage');
+    if (root) mo.observe(root, { childList: true, subtree: true });
+    observe();
+    window.addEventListener('resize', refitAll);
+    window.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('keydown', onKey);
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+      window.removeEventListener('resize', refitAll);
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Overview</h1>
-          <p className="text-sm text-muted-foreground">Your Claude Code usage at a glance</p>
-        </div>
-        <CostModeSelector />
-      </div>
-
-      {/* Hero Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard
-          title="Total Sessions"
-          value={stats.totalSessions.toLocaleString()}
-          subtitle={`across ${stats.projectCount} projects`}
-          icon={Layers}
-        />
-        <StatCard
-          title="Total Messages"
-          value={stats.totalMessages.toLocaleString()}
-          icon={MessageSquare}
-        />
-        <StatCard
-          title="Total Tokens"
-          value={formatTokens(stats.totalTokens)}
-          icon={Activity}
-        />
-        <StatCard
-          title="Estimated Usage"
-          value={formatCost(pickCost(stats.estimatedCosts, stats.estimatedCost))}
-          subtitle={modeLabel.name.toLowerCase() + ' estimate'}
-          icon={Coins}
-        />
-      </div>
-
-      {/* Charts Row 1 */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2">
-          <UsageOverTime data={stats.dailyActivity} />
-        </div>
-        <ModelBreakdown data={stats.modelUsage} />
-      </div>
-
-      {/* Charts Row 2 */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2">
-          <ActivityHeatmap data={stats.dailyActivity} />
-        </div>
-        <PeakHours data={stats.hourCounts} />
-      </div>
-
-      {/* Recent Sessions */}
-      <Card className="border-border/50 shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold">Recent Sessions</CardTitle>
-            <Link
-              href="/sessions"
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              View all
-            </Link>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="space-y-2">
-            {stats.recentSessions.map(session => (
-              <Link
-                key={session.id}
-                href={`/sessions/${session.id}`}
-                className="flex items-center justify-between rounded-lg border border-border/50 px-4 py-3 transition-colors hover:bg-accent/50"
-              >
-                <div className="flex items-center gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{session.projectName}</span>
-                      {[...new Set(session.models)].map(m => (
-                        <Badge key={m} variant="secondary" className="text-[10px] px-1.5 py-0">
-                          {m}
-                        </Badge>
-                      ))}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
-                      {session.gitBranch && (
-                        <span className="flex items-center gap-1">
-                          <GitBranch className="h-3 w-3" />
-                          {session.gitBranch}
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {formatDuration(session.duration)}
-                      </span>
-                      <span>{session.messageCount} messages</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-medium">{formatCost(pickCost(session.estimatedCosts, session.estimatedCost))}</p>
-                  <p className="text-[10px] text-muted-foreground">{timeAgo(session.timestamp)}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+    <div id="onepage">
+      {SECTIONS.map(({ id, Component }) => (
+        <section key={id} id={id}>
+          <Component />
+        </section>
+      ))}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { useSessions } from '@/lib/hooks';
 import { useCostMode } from '@/lib/cost-mode-context';
 import { formatCost, formatDuration, timeAgo, formatTokens } from '@/lib/format';
@@ -18,6 +18,11 @@ function useDebounce(value: string, delay: number) {
   }, [value, delay]);
   return debounced;
 }
+
+const FIRST_SLIDE = 9;
+const PER_SLIDE = 12;
+const chunk = <T,>(arr: T[], size: number) =>
+  Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, (i + 1) * size));
 
 export default function SessionsPage() {
   return (
@@ -37,13 +42,15 @@ export default function SessionsPage() {
 function SessionsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const debouncedQuery = useDebounce(searchQuery, 300);
   const { data: sessions, isLoading } = useSessions(100, 0, debouncedQuery);
   const { pickCost } = useCostMode();
 
-  // Sync debounced query to URL
+  // Sync debounced query to URL (only on the standalone page, not inside the one-page home)
   useEffect(() => {
+    if (pathname !== '/sessions') return;
     const params = new URLSearchParams(window.location.search);
     if (debouncedQuery) {
       params.set('q', debouncedQuery);
@@ -52,7 +59,7 @@ function SessionsContent() {
     }
     const qs = params.toString();
     router.replace(qs ? `/sessions?${qs}` : '/sessions', { scroll: false });
-  }, [debouncedQuery, router]);
+  }, [debouncedQuery, router, pathname]);
 
   if (isLoading || !sessions) {
     return (
@@ -65,8 +72,16 @@ function SessionsContent() {
     );
   }
 
+  // One-page slides: the first holds the header and search, the next ones only rows.
+  const pages = sessions.length
+    ? [sessions.slice(0, FIRST_SLIDE), ...chunk(sessions.slice(FIRST_SLIDE), PER_SLIDE)]
+    : [[]];
+
   return (
     <div className="space-y-6">
+      {pages.map((group, i) => (
+      <div key={i} className="slide space-y-6">
+      {i === 0 && <>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight">Sessions</h1>
@@ -96,6 +111,7 @@ function SessionsContent() {
         )}
       </div>
 
+      </>}
       <Card className="border-border/50 shadow-sm">
         <CardContent className="p-0">
           <div className="divide-y divide-border/50">
@@ -104,7 +120,7 @@ function SessionsContent() {
                 <Search className="mx-auto h-8 w-8 text-muted-foreground/50" />
                 <p className="mt-3 text-sm text-muted-foreground">No sessions found matching &quot;{debouncedQuery}&quot;</p>
               </div>
-            ) : sessions.map(session => (
+            ) : group.map(session => (
               <Link
                 key={session.id}
                 href={`/sessions/${session.id}`}
@@ -156,6 +172,8 @@ function SessionsContent() {
           </div>
         </CardContent>
       </Card>
+      </div>
+      ))}
     </div>
   );
 }

@@ -9,12 +9,13 @@ interface StatCardProps {
   subtitle?: string;
   icon: LucideIcon;
   trend?: string;
+  compact?: boolean;
 }
 
-export function StatCard({ title, value, subtitle, icon: Icon, trend }: StatCardProps) {
+export function StatCard({ title, value, subtitle, icon: Icon, trend, compact }: StatCardProps) {
   return (
-    <Card className="border-border/50 shadow-sm">
-      <CardContent className="p-5">
+    <Card className={`border-border/50 shadow-sm ${compact ? 'gap-0 py-0' : ''}`}>
+      <CardContent className={compact ? 'px-4 py-3' : 'p-5'}>
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <p className="text-xs font-medium text-muted-foreground">{title}</p>

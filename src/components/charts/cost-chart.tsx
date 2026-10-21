@@ -72,7 +72,7 @@ export function CostChart({ data }: CostChartProps) {
                   borderRadius: '8px',
                   fontSize: '12px',
                 }}
-                formatter={(value) => [`$${Number(value).toFixed(2)}`, '']}
+                formatter={(value) => [`$${Math.round(Number(value))}`, '']}
               />
               <Legend
                 wrapperStyle={{ fontSize: '11px' }}

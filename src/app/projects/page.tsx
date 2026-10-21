@@ -8,6 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { FolderKanban, MessageSquare, Clock, Layers } from 'lucide-react';
 import Link from 'next/link';
 
+// Twelve compact cards (four rows) per slide so each one-page block fits the screen.
+const PER_SLIDE = 12;
+const chunk = <T,>(arr: T[], size: number) =>
+  Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, (i + 1) * size));
+
 export default function ProjectsPage() {
   const { data: projects, isLoading } = useProjects();
   const { pickCost } = useCostMode();
@@ -25,20 +30,22 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
+      {chunk(projects, PER_SLIDE).map((group, i) => (
+      <div key={i} className="slide space-y-6">
+      {i === 0 && <div>
         <h1 className="text-xl font-bold tracking-tight">Projects</h1>
         <p className="text-sm text-muted-foreground">{projects.length} projects tracked</p>
-      </div>
+      </div>}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {projects.map(project => (
+        {group.map(project => (
           <Link key={project.id} href={`/projects/${encodeURIComponent(project.id)}`}>
-            <Card className="border-border/50 shadow-sm transition-all hover:shadow-md hover:border-primary/30 cursor-pointer h-full">
-              <CardContent className="p-5">
-                <div className="space-y-3">
+            <Card className="border-border/50 shadow-sm transition-all hover:shadow-md hover:border-primary/30 cursor-pointer h-full gap-0 py-0">
+              <CardContent className="px-4 py-3">
+                <div className="space-y-2">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="rounded-lg bg-primary/10 p-2">
+                      <div className="rounded-lg bg-primary/10 p-1.5">
                         <FolderKanban className="h-4 w-4 text-primary" />
                       </div>
                       <div>
@@ -60,22 +67,22 @@ export default function ProjectsPage() {
 
                   <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/50">
                     <div className="text-center">
-                      <p className="text-lg font-bold">{project.sessionCount}</p>
+                      <p className="text-base font-bold leading-tight">{project.sessionCount}</p>
                       <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">
                         <Layers className="h-2.5 w-2.5" /> sessions
                       </p>
                     </div>
                     <div className="text-center">
-                      <p className="text-lg font-bold">{formatTokens(project.totalTokens)}</p>
+                      <p className="text-base font-bold leading-tight">{formatTokens(project.totalTokens)}</p>
                       <p className="text-[10px] text-muted-foreground">tokens</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-lg font-bold">{formatCost(pickCost(project.estimatedCosts, project.estimatedCost))}</p>
+                      <p className="text-base font-bold leading-tight">{formatCost(pickCost(project.estimatedCosts, project.estimatedCost))}</p>
                       <p className="text-[10px] text-muted-foreground">est. usage</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1">
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <MessageSquare className="h-2.5 w-2.5" />
                       {project.totalMessages.toLocaleString()} messages
@@ -91,6 +98,8 @@ export default function ProjectsPage() {
           </Link>
         ))}
       </div>
+      </div>
+      ))}
     </div>
   );
 }

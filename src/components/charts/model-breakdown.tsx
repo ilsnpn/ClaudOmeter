@@ -4,6 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getModelDisplayName, getModelColor } from '@/config/pricing';
 import { useCostMode } from '@/lib/cost-mode-context';
+import { MIN_DISPLAY_COST } from '@/lib/format';
 import type { ModelUsage, CostEstimates } from '@/lib/claude-data/types';
 
 interface ModelBreakdownProps {
@@ -29,7 +30,7 @@ export function ModelBreakdown({ data }: ModelBreakdownProps) {
     outputTokens: usage.outputTokens,
     cacheRead: usage.cacheReadInputTokens,
     cacheWrite: usage.cacheCreationInputTokens,
-  }));
+  })).filter(m => m.cost >= MIN_DISPLAY_COST);
 
   const totalTokens = chartData.reduce((sum, d) => sum + d.tokens, 0);
 
@@ -80,7 +81,7 @@ export function ModelBreakdown({ data }: ModelBreakdownProps) {
                     />
                     <span className="text-sm font-medium">{item.name}</span>
                   </div>
-                  <span className="text-sm font-semibold">${item.cost.toFixed(2)}</span>
+                  <span className="text-sm font-semibold">${Math.round(item.cost).toLocaleString('en-US')}</span>
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>{formatTokens(item.tokens)} tokens</span>

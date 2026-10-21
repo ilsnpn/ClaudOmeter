@@ -1,4 +1,11 @@
-# Claud-ometer
+# Claud'Ometer
+
+> Fork of [Claud-ometer](https://github.com/deshraj/Claud-ometer) by deshraj (MIT). This version runs entirely in the browser:
+> you load your `.claude` folder (or a ZIP), it is analysed locally, and nothing is uploaded or stored. It adds a one-page
+> layout, a Value page (projection vs hand-written cost), light/dark/system themes and PDF export.
+
+---
+
 
 A local-first analytics dashboard for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Reads directly from `~/.claude/` to give you full visibility into your usage, costs, sessions, and projects — no cloud, no telemetry, just your data.
 

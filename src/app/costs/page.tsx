@@ -5,13 +5,13 @@ import { useCostMode } from '@/lib/cost-mode-context';
 import { CostModeSelector } from '@/components/cost-mode-selector';
 import { StatCard } from '@/components/cards/stat-card';
 import { CostChart } from '@/components/charts/cost-chart';
-import { formatCost, formatTokens } from '@/lib/format';
+import { formatCostFull, formatTokens, formatTokensFull, MIN_DISPLAY_COST } from '@/lib/format';
 import { getModelDisplayName, getModelColor, MODEL_PRICING } from '@/config/pricing';
 import { Coins, TrendingUp, Zap, Database, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList,
 } from 'recharts';
 
 export default function CostsPage() {
@@ -58,7 +58,7 @@ export default function CostsPage() {
 
   // Cost by project
   const projectCosts = projects
-    .filter(p => (p.estimatedCosts ? pickCost(p.estimatedCosts) : p.estimatedCost) > 0)
+    .filter(p => (p.estimatedCosts ? pickCost(p.estimatedCosts) : p.estimatedCost) >= MIN_DISPLAY_COST)
     .sort((a, b) => {
       const costA = a.estimatedCosts ? pickCost(a.estimatedCosts) : a.estimatedCost;
       const costB = b.estimatedCosts ? pickCost(b.estimatedCosts) : b.estimatedCost;
@@ -80,10 +80,11 @@ export default function CostsPage() {
     outputTokens: usage.outputTokens,
     cacheRead: usage.cacheReadInputTokens,
     cacheWrite: usage.cacheCreationInputTokens,
-  }));
+  })).filter(m => m.cost >= MIN_DISPLAY_COST);
 
   return (
     <div className="space-y-6">
+      <div className="slide space-y-6">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight">Cost Analytics</h1>
@@ -107,24 +108,24 @@ export default function CostsPage() {
       <div className="grid grid-cols-4 gap-4">
         <StatCard
           title="Estimated Usage"
-          value={formatCost(totalCost)}
+          value={formatCostFull(totalCost)}
           subtitle={modeLabel.name.toLowerCase() + ' estimate'}
           icon={Coins}
         />
         <StatCard
           title="Cache Savings"
-          value={formatCost(cacheSavings)}
+          value={formatCostFull(cacheSavings)}
           subtitle="saved via prompt caching"
           icon={Zap}
         />
         <StatCard
           title="Input Tokens"
-          value={formatTokens(totalInputTokens)}
+          value={formatTokensFull(totalInputTokens)}
           icon={TrendingUp}
         />
         <StatCard
           title="Output Tokens"
-          value={formatTokens(totalOutputTokens)}
+          value={formatTokensFull(totalOutputTokens)}
           icon={Database}
         />
       </div>
@@ -132,6 +133,8 @@ export default function CostsPage() {
       {/* Cost Over Time */}
       <CostChart data={stats.dailyModelTokens} />
 
+      </div>
+      <div className="slide space-y-6">
       <div className="grid grid-cols-2 gap-4">
         {/* Cost by Project */}
         <Card className="border-border/50 shadow-sm">
@@ -144,7 +147,7 @@ export default function CostsPage() {
                 <BarChart
                   data={projectCosts}
                   layout="vertical"
-                  margin={{ top: 5, right: 20, left: 5, bottom: 5 }}
+                  margin={{ top: 5, right: 60, left: 5, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
                   <XAxis
@@ -169,9 +172,16 @@ export default function CostsPage() {
                       borderRadius: '8px',
                       fontSize: '12px',
                     }}
-                    formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Est. Cost']}
+                    formatter={(value) => [`$${Math.round(Number(value))}`, 'Est. Cost']}
                   />
-                  <Bar dataKey="cost" fill="var(--primary)" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="cost" fill="var(--primary)" radius={[0, 4, 4, 0]}>
+                    <LabelList
+                      dataKey="cost"
+                      position="right"
+                      formatter={(v) => formatCostFull(Number(v))}
+                      style={{ fontSize: 11, fontWeight: 600, fill: 'var(--foreground)' }}
+                    />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -195,7 +205,7 @@ export default function CostsPage() {
                       />
                       <span className="text-sm font-semibold">{item.name}</span>
                     </div>
-                    <span className="text-sm font-bold">{formatCost(item.cost)}</span>
+                    <span className="text-sm font-bold">{formatCostFull(item.cost)}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground pl-5">
                     <span>Input: {formatTokens(item.inputTokens)}</span>
@@ -223,7 +233,7 @@ export default function CostsPage() {
                 <Separator />
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground font-medium">API-Rate Savings</span>
-                  <span className="font-bold text-green-600">{formatCost(cacheSavings)}</span>
+                  <span className="font-bold text-green-600">{formatCostFull(cacheSavings)}</span>
                 </div>
               </div>
             </div>
@@ -266,6 +276,7 @@ export default function CostsPage() {
           </p>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

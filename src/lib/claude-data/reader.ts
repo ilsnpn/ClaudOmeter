@@ -1,9 +1,5 @@
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
-import readline from 'readline';
 import { calculateCostAllModes, getModelDisplayName, DEFAULT_COST_MODE } from '@/config/pricing';
-import { getActiveDataSource, getImportDir } from './data-source';
+import { fs, path, readline, CLAUDE_ROOT, getVersion } from './vfs';
 import type {
   StatsCache,
   HistoryEntry,
@@ -44,10 +40,7 @@ async function forEachJsonlLine(filePath: string, callback: (msg: SessionMessage
 }
 
 function getClaudeDir(): string {
-  if (getActiveDataSource() === 'imported') {
-    return path.join(getImportDir(), 'claude-data');
-  }
-  return path.join(os.homedir(), '.claude');
+  return CLAUDE_ROOT;
 }
 
 function getProjectsDir(): string {
@@ -81,11 +74,7 @@ function projectIdToFullPath(id: string): string {
 
 function extractCwdFromSession(filePath: string): string | null {
   try {
-    const fd = fs.openSync(filePath, 'r');
-    const buffer = Buffer.alloc(8192); // Read first 8KB, enough for first few lines
-    const bytesRead = fs.readSync(fd, buffer, 0, 8192, 0);
-    fs.closeSync(fd);
-    const text = buffer.toString('utf-8', 0, bytesRead);
+    const text = fs.readFileSync(filePath, 'utf-8').slice(0, 8192); // First 8KB, enough for first few lines
     const lines = text.split('\n').filter(Boolean);
     for (const line of lines) {
       try {
@@ -520,7 +509,7 @@ function getRecentSessionFiles(afterDate: string): string[] {
 }
 
 async function computeSupplementalStats(afterDate: string): Promise<SupplementalStats> {
-  const cacheKey = afterDate + ':' + getActiveDataSource();
+  const cacheKey = afterDate + ':' + getVersion();
   if (supplementalCache && supplementalCache.key === cacheKey && Date.now() - supplementalCache.ts < SUPPLEMENTAL_TTL_MS) {
     return supplementalCache.data;
   }

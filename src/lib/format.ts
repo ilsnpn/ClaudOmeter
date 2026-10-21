@@ -7,10 +7,19 @@ export function formatTokens(n: number): string {
 
 export function formatCost(n: number): string {
   if (n >= 1000) return `$${(n / 1000).toFixed(1)}K`;
-  if (n >= 1) return `$${n.toFixed(2)}`;
-  if (n >= 0.01) return `$${n.toFixed(2)}`;
-  return `$${n.toFixed(4)}`;
+  return `$${Math.round(n)}`;
 }
+
+export function formatTokensFull(n: number): string {
+  return n.toLocaleString('en-US');
+}
+
+export function formatCostFull(n: number): string {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+}
+
+// Models or projects below this estimated cost are noise and are hidden.
+export const MIN_DISPLAY_COST = 1;
 
 export function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000);
